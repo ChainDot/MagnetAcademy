@@ -3,15 +3,20 @@
 pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./SchoolMagnet.sol";
 
-contract MagnetAcademy {
+contract MagnetAcademy is AccessControl {
     using Counters for Counters.Counter;
 
+    bytes32 public constant RECTOR = keccak256("RECTOR");
+    bytes32 public constant ADMIN = keccak256("ADMIN");
+
     address private _rector;
+
     Counters.Counter private _nbSchools;
     Counters.Counter private _schoolId;
-    mapping(address => bool) private _admins;
+
     mapping(address => address) private _schoolDirectors; // director to school
     mapping(address => address) private _schools; // school to director
 
@@ -21,13 +26,20 @@ contract MagnetAcademy {
     event SchoolDeleted(address indexed schoolAddress, address indexed directorAddress);
     event DirectorSet(address indexed directorAddress, address indexed schoolAddress);
 
+    constructor(address rector_) {
+        _rector = rector_;
+        _setupRole(DEFAULT_ADMIN_ROLE, rector_);
+        _setupRole(RECTOR, rector_);
+        _setupRole(ADMIN, rector_);
+    }
+
     modifier OnlyRector() {
-        require(msg.sender == _rector, "MagnetAcademy: Only rector can perform this action");
+        require(hasRole(RECTOR, msg.sender), "MagnetAcademy: Only rector can perform this action");
         _;
     }
 
     modifier OnlyAdmin() {
-        require(_admins[msg.sender] == true, "MagnetAcademy: Only administrators can perform this action");
+        require(hasRole(ADMIN, msg.sender), "MagnetAcademy: Only administrators can perform this action");
         _;
     }
 
@@ -46,18 +58,13 @@ contract MagnetAcademy {
         _;
     }
 
-    constructor(address rector_) {
-        _rector = rector_;
-        _admins[rector_] = true;
-    }
-
     function addAdmin(address account) public OnlyRector() {
-        _admins[account] = true;
+        grantRole(ADMIN, account);
         emit AdminAdded(account);
     }
 
     function revokeAdmin(address account) public OnlyRector() {
-        _admins[account] = false;
+        revokeRole(ADMIN, account);
         emit AdminRevoked(account);
     }
 
@@ -117,7 +124,7 @@ contract MagnetAcademy {
     }
 
     function isAdmin(address account) public view returns (bool) {
-        return _admins[account];
+        return hasRole(ADMIN, account);
     }
 
     function isDirector(address account) public view returns (bool) {
